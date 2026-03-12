@@ -12,6 +12,7 @@ description 'Fuel management system with ox_inventory support'
 dependencies {
 	'ox_lib',
 	'ox_inventory',
+	'core_business',
 }
 
 shared_scripts {

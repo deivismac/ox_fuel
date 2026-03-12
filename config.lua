@@ -50,5 +50,14 @@ return {
 		`prop_gas_pump_1c`,
 		`prop_gas_pump_1b`,
 		`prop_gas_pump_1d`,
-	}
+	},
+
+	-- Core Business integration
+	-- Uses core_business closest property API exports for gas station ownership
+	coreBusiness = {
+		enabled = true,             -- Enable/disable core_business integration
+		registerSales = true,       -- Register fuel sales as business income
+		fuelItem = "fuel",          -- Item name in core_business property stash
+		fuelPerLiter = 1,           -- How many stash items equal 1% of fuel
+	},
 }

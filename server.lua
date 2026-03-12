@@ -19,6 +19,45 @@ local function setFuelState(netId, fuel)
 	state:set('fuel', fuel, true)
 end
 
+-----------------------------------------------------------------------------------------------------------------------------------------
+-- Core Business helpers
+-----------------------------------------------------------------------------------------------------------------------------------------
+
+local function getPlayerCoords(source)
+	local ped = GetPlayerPed(source)
+	return ped and GetEntityCoords(ped)
+end
+
+local function coreBusinessRemoveFuel(source, fuelPercent)
+	if not config.coreBusiness or not config.coreBusiness.enabled then return true end
+
+	local coords = getPlayerCoords(source)
+	if not coords then return true end
+
+	local fuelItem = config.coreBusiness.fuelItem
+	local fuelPerLiter = config.coreBusiness.fuelPerLiter or 1
+	local itemsNeeded = math.max(1, math.ceil(fuelPercent * fuelPerLiter))
+
+	local itemCount = exports['core_business']:closestPropertyItemCount(coords, fuelItem)
+	if itemCount == 1000.0 then return true end
+
+	local removed = exports['core_business']:closestPropertyRemoveItem(coords, fuelItem, itemsNeeded)
+	return removed
+end
+
+local function coreBusinessRegisterSale(source, price, logMsg)
+	if not config.coreBusiness or not config.coreBusiness.enabled or not config.coreBusiness.registerSales then return end
+
+	local coords = getPlayerCoords(source)
+	if not coords then return end
+
+	exports['core_business']:closestPropertyRegisterSale(coords, price, logMsg or "Fuel sale")
+end
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+-- Payment
+-----------------------------------------------------------------------------------------------------------------------------------------
+
 ---@param playerId number
 ---@param price number
 ---@return boolean?
@@ -44,14 +83,34 @@ end)
 RegisterNetEvent('ox_fuel:pay', function(price, fuel, netid)
 	assert(type(price) == 'number', ('Price expected a number, received %s'):format(type(price)))
 	local source = source
+
+	local fuelPercent = math.floor(fuel)
+	if not coreBusinessRemoveFuel(source, fuelPercent) then
+		-- Reset client fuel to server-authoritative value to fix desync
+		local vehicle = NetworkGetEntityFromNetworkId(netid)
+		if vehicle ~= 0 and GetEntityType(vehicle) == 2 then
+			local currentFuel = Entity(vehicle)?.state?.fuel
+			if currentFuel then
+				setFuelState(netid, currentFuel)
+			end
+		end
+
+		TriggerClientEvent('ox_lib:notify', source, {
+			type = 'error',
+			description = locale('not_enough_stock') or 'Not enough fuel in stock'
+		})
+		return
+	end
+
 	if not payMoney(source, price) then return end
 
-	fuel = math.floor(fuel)
-	setFuelState(netid, fuel)
+	setFuelState(netid, fuelPercent)
+
+	coreBusinessRegisterSale(source, price, string.format("Fuel sale: %d%% for $%d", fuelPercent, price))
 
 	TriggerClientEvent('ox_lib:notify', source, {
 		type = 'success',
-		description = locale('fuel_success', fuel, price)
+		description = locale('fuel_success', fuelPercent, price)
 	})
 end)
 
@@ -66,6 +125,8 @@ RegisterNetEvent('ox_fuel:fuelCan', function(hasCan, price)
 		item.metadata.ammo = 100
 
 		ox_inventory:SetMetadata(source, item.slot, item.metadata)
+
+		coreBusinessRegisterSale(source, price, "Petrol can refill")
 
 		TriggerClientEvent('ox_lib:notify', source, {
 			type = 'success',
@@ -82,6 +143,8 @@ RegisterNetEvent('ox_fuel:fuelCan', function(hasCan, price)
 		if not payMoney(source, price) then return end
 
 		ox_inventory:AddItem(source, 'WEAPON_PETROLCAN', 1)
+
+		coreBusinessRegisterSale(source, price, "Petrol can purchase")
 
 		TriggerClientEvent('ox_lib:notify', source, {
 			type = 'success',
