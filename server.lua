@@ -82,11 +82,10 @@ end)
 
 RegisterNetEvent('ox_fuel:pay', function(price, fuel, netid)
 	assert(type(price) == 'number', ('Price expected a number, received %s'):format(type(price)))
-	local source = source
+	local src = source
 
 	local fuelPercent = math.floor(fuel)
-	if not coreBusinessRemoveFuel(source, fuelPercent) then
-		-- Reset client fuel to server-authoritative value to fix desync
+	if not coreBusinessRemoveFuel(src, fuelPercent) then
 		local vehicle = NetworkGetEntityFromNetworkId(netid)
 		if vehicle ~= 0 and GetEntityType(vehicle) == 2 then
 			local currentFuel = Entity(vehicle)?.state?.fuel
@@ -95,23 +94,47 @@ RegisterNetEvent('ox_fuel:pay', function(price, fuel, netid)
 			end
 		end
 
-		TriggerClientEvent('ox_lib:notify', source, {
+		TriggerClientEvent('ox_lib:notify', src, {
 			type = 'error',
 			description = locale('not_enough_stock') or 'Not enough fuel in stock'
 		})
 		return
 	end
 
-	if not payMoney(source, price) then return end
+	local useCorePay = config.coreBusiness and config.coreBusiness.enabled and config.coreBusiness.useCorePay
+	local coords = useCorePay and getPlayerCoords(src)
+	local businessId = coords and exports['core_business']:closestPropertyGetBusinessId(coords)
 
-	setFuelState(netid, fuelPercent)
+	if useCorePay and businessId then
+		exports['core_business']:requestCorePay(src, businessId, price, string.format("Fuel: %d%%", fuelPercent), function(success)
+			if success then
+				setFuelState(netid, fuelPercent)
+				TriggerClientEvent('ox_lib:notify', src, {
+					type = 'success',
+					description = locale('fuel_success', fuelPercent, price)
+				})
+			else
+				local vehicle = NetworkGetEntityFromNetworkId(netid)
+				if vehicle ~= 0 and GetEntityType(vehicle) == 2 then
+					local currentFuel = Entity(vehicle)?.state?.fuel
+					if currentFuel then
+						setFuelState(netid, currentFuel)
+					end
+				end
+			end
+		end)
+	else
+		if not payMoney(src, price) then return end
 
-	coreBusinessRegisterSale(source, price, string.format("Fuel sale: %d%% for $%d", fuelPercent, price))
+		setFuelState(netid, fuelPercent)
 
-	TriggerClientEvent('ox_lib:notify', source, {
-		type = 'success',
-		description = locale('fuel_success', fuelPercent, price)
-	})
+		coreBusinessRegisterSale(src, price, string.format("Fuel sale: %d%% for $%d", fuelPercent, price))
+
+		TriggerClientEvent('ox_lib:notify', src, {
+			type = 'success',
+			description = locale('fuel_success', fuelPercent, price)
+		})
+	end
 end)
 
 RegisterNetEvent('ox_fuel:fuelCan', function(hasCan, price)
