@@ -85,29 +85,28 @@ RegisterNetEvent('ox_fuel:pay', function(price, fuel, netid)
 	local src = source
 
 	local fuelPercent = math.floor(fuel)
-	if not coreBusinessRemoveFuel(src, fuelPercent) then
-		local vehicle = NetworkGetEntityFromNetworkId(netid)
-		if vehicle ~= 0 and GetEntityType(vehicle) == 2 then
-			local currentFuel = Entity(vehicle)?.state?.fuel
-			if currentFuel then
-				setFuelState(netid, currentFuel)
-			end
-		end
-
-		TriggerClientEvent('ox_lib:notify', src, {
-			type = 'error',
-			description = locale('not_enough_stock') or 'Not enough fuel in stock'
-		})
-		return
-	end
 
 	local useCorePay = config.coreBusiness and config.coreBusiness.enabled and config.coreBusiness.useCorePay
 	local coords = useCorePay and getPlayerCoords(src)
 	local businessId = coords and exports['core_business']:closestPropertyGetBusinessId(coords)
 
 	if useCorePay and businessId then
+		-- CorePay path: verify stock, pay first, remove stock on success
+		local fuelItem = config.coreBusiness.fuelItem
+		local fuelPerLiter = config.coreBusiness.fuelPerLiter or 1
+		local itemsNeeded = math.max(1, math.ceil(fuelPercent * fuelPerLiter))
+		local itemCount = exports['core_business']:closestPropertyItemCount(coords, fuelItem)
+		if itemCount ~= 1000.0 and itemCount < itemsNeeded then
+			TriggerClientEvent('ox_lib:notify', src, {
+				type = 'error',
+				description = locale('not_enough_stock') or 'Not enough fuel in stock'
+			})
+			return
+		end
+
 		exports['core_business']:requestCorePay(src, businessId, price, string.format("Fuel: %d%%", fuelPercent), function(success)
 			if success then
+				coreBusinessRemoveFuel(src, fuelPercent)
 				setFuelState(netid, fuelPercent)
 				TriggerClientEvent('ox_lib:notify', src, {
 					type = 'success',
@@ -124,6 +123,22 @@ RegisterNetEvent('ox_fuel:pay', function(price, fuel, netid)
 			end
 		end)
 	else
+		if not coreBusinessRemoveFuel(src, fuelPercent) then
+			local vehicle = NetworkGetEntityFromNetworkId(netid)
+			if vehicle ~= 0 and GetEntityType(vehicle) == 2 then
+				local currentFuel = Entity(vehicle)?.state?.fuel
+				if currentFuel then
+					setFuelState(netid, currentFuel)
+				end
+			end
+
+			TriggerClientEvent('ox_lib:notify', src, {
+				type = 'error',
+				description = locale('not_enough_stock') or 'Not enough fuel in stock'
+			})
+			return
+		end
+
 		if not payMoney(src, price) then return end
 
 		setFuelState(netid, fuelPercent)
