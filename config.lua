@@ -58,7 +58,7 @@ return {
 		enabled = true,             -- Enable/disable core_business integration
 		registerSales = true,       -- Register fuel sales as business income
 		fuelItem = "fuel",          -- Item name in core_business property stash
-		fuelPerLiter = 1,           -- How many stash items equal 1% of fuel
+		litersPerFuelItem = 1,      -- How many liters (or %) of fuel 1 stash item represents (e.g. 30 = 1 fuel item fills 30%)
 		useCorePay = true,          -- true: use CorePay signature UI for payment (bank), false: charge cash directly
 	},
 }

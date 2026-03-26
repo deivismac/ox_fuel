@@ -35,8 +35,8 @@ local function coreBusinessRemoveFuel(source, fuelPercent)
 	if not coords then return true end
 
 	local fuelItem = config.coreBusiness.fuelItem
-	local fuelPerLiter = config.coreBusiness.fuelPerLiter or 1
-	local itemsNeeded = math.max(1, math.ceil(fuelPercent * fuelPerLiter))
+	local litersPerItem = config.coreBusiness.litersPerFuelItem or 1
+	local itemsNeeded = math.max(1, math.ceil(fuelPercent / litersPerItem))
 
 	local itemCount = exports['core_business']:closestPropertyItemCount(coords, fuelItem)
 	if itemCount == 1000.0 then return true end
@@ -93,8 +93,8 @@ RegisterNetEvent('ox_fuel:pay', function(price, fuel, netid)
 	if useCorePay and businessId then
 		-- CorePay path: verify stock, pay first, remove stock on success
 		local fuelItem = config.coreBusiness.fuelItem
-		local fuelPerLiter = config.coreBusiness.fuelPerLiter or 1
-		local itemsNeeded = math.max(1, math.ceil(fuelPercent * fuelPerLiter))
+		local litersPerItem = config.coreBusiness.litersPerFuelItem or 1
+		local itemsNeeded = math.max(1, math.ceil(fuelPercent / litersPerItem))
 		local itemCount = exports['core_business']:closestPropertyItemCount(coords, fuelItem)
 		if itemCount ~= 1000.0 and itemCount < itemsNeeded then
 			TriggerClientEvent('ox_lib:notify', src, {
